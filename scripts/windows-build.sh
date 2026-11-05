@@ -27,8 +27,8 @@ wtry() { # 名字 函数：失败只记录，不中断
   local n="$1"; shift
   ( set -e; "$@" ) > "$OUT/logs/dep-$n.log" 2>&1
   local rc=$?
-  if [ $rc -eq 0 ]; then echo "OK    $n（源码编译）" | tee -a "$REPORT"
-  else echo "FAIL  $n（日志 logs/dep-$n.log）" | tee -a "$REPORT"; tail -n 20 "$OUT/logs/dep-$n.log"; fi
+  if [ $rc -eq 0 ]; then echo "OK    ${n}（源码编译）" | tee -a "$REPORT"
+  else echo "FAIL  ${n}（日志 logs/dep-${n}.log）" | tee -a "$REPORT"; tail -n 20 "$OUT/logs/dep-$n.log"; fi
 }
 wdep_vmaf() {
   wfetch "https://github.com/Netflix/vmaf/archive/refs/tags/v3.0.0.tar.gz" vmaf
@@ -40,6 +40,8 @@ wdep_vmaf() {
 wdep_librist() {
   wfetch "https://code.videolan.org/rist/librist/-/archive/v0.2.10/librist-v0.2.10.tar.gz" librist
   cd "$WSRC/librist"
+  # mingw 的 winpthreads 已经提供了 clock_gettime，librist 自带的垫片又定义了一遍，冲突。把垫片里那个改成不对外的
+  sed -i 's/^int clock_gettime(clockid_t clock_id, struct timespec \*tp)/static int rist_shim_clock_gettime(clockid_t clock_id, struct timespec *tp)/' contrib/time-shim.c
   meson setup _b --prefix=/mingw64 --libdir=lib --buildtype=release --default-library=static -Dbuilt_tools=false -Dtest=false
   ninja -C _b install
 }
@@ -67,7 +69,7 @@ have ffnvcodec && HW+=(--enable-cuda --enable-cuvid --enable-nvenc --enable-nvde
 have vpl && HW+=(--enable-libvpl)
 [ -f /mingw64/include/AMF/core/Factory.h ] && HW+=(--enable-amf)
 
-COMMON=(--arch=x86_64 --target-os=mingw32 --extra-cflags=-DCHROMAPRINT_NODLL --disable-autodetect --disable-doc --disable-debug --disable-avdevice
+COMMON=(--arch=x86_64 --target-os=mingw32 --extra-cflags=-DCHROMAPRINT_NODLL --extra-libs=-lstdc++ --disable-autodetect --disable-doc --disable-debug --disable-avdevice
         --enable-zlib --enable-bzlib --enable-lzma --enable-iconv --pkg-config-flags=--static)
 
 ff_conf() { # 名字 额外参数...
